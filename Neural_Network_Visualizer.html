@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>شبیه‌ساز تعاملی پردازش شبکه‌های عصبی</title>
+    <style>
+        :root {
+            --bg-dark: #0f172a;
+            --panel-bg: #1e293b;
+            --text-light: #f8fafc;
+            --text-dim: #94a3b8;
+            --accent: #0ea5e9;
+            --accent-hover: #0284c7;
+            --node-inactive: #334155;
+            --node-active: #38bdf8;
+            --edge-color: rgba(56, 189, 248, 0.08);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background-color: var(--panel-bg);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            box-shadow: -4px 0 15px rgba(0,0,0,0.5);
+            z-index: 10;
+            overflow-y: auto;
+        }
+
+        h1 {
+            font-size: 1.25rem;
+            color: var(--accent);
+            text-align: center;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 1rem;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .control-group label {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-group input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+        
+        .val-display {
+            color: var(--text-light);
+            font-weight: bold;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: bold;
+            margin-top: 0.5rem;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+        
+        button.secondary {
+            background-color: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+        }
+        
+        button.secondary:hover {
+            background-color: rgba(14, 165, 233, 0.1);
+        }
+
+        .info-box {
+            background-color: rgba(14, 165, 233, 0.1);
+            border-right: 4px solid var(--accent);
+            padding: 1rem;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            color: #cbd5e1;
+        }
+
+        /* Canvas Area */
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .status-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(4px);
+            border: 1px solid #334155;
+            display: none;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h1>مدیریت و کنترل معماری شبکه</h1>
+        
+        <div class="info-box">
+            این ابزار برای نمایش بصری انتقال داده در شبکه‌های عصبی عمیق طراحی شده است. می‌توانید ابعاد شبکه را در مقیاس‌های بسیار بزرگ (تا هزاران نود و میلیون‌ها اتصال) افزایش دهید تا پیچیدگی محاسباتی "جعبه سیاه" را مشاهده کنید.
+        </div>
+
+        <div class="control-group">
+            <label><span>تعداد نودهای ورودی (Input)</span> <span id="val-in" class="val-display">10</span></label>
+            <input type="range" id="in-nodes" min="1" max="200" value="10">
+        </div>
+
+        <div class="control-group">
+            <label><span>تعداد لایه‌های پنهان (Hidden Layers)</span> <span id="val-hl" class="val-display">3</span></label>
+            <input type="range" id="hidden-layers" min="1" max="100" value="3">
+        </div>
+
+        <div class="control-group">
+            <label><span>نودها در هر لایه پنهان</span> <span id="val-hn" class="val-display">16</span></label>
+            <input type="range" id="hidden-nodes" min="1" max="500" value="16">
+        </div>
+
+        <div class="control-group">
+            <label><span>تعداد نودهای خروجی (Output)</span> <span id="val-out" class="val-display">4</span></label>
+            <input type="range" id="out-nodes" min="1" max="100" value="4">
+        </div>
+
+        <button id="btn-build">بازسازی و رندر شبکه</button>
+        <button id="btn-simulate" class="secondary">شبیه‌سازی جریان داده (Forward Pass)</button>
+        
+        <div id="performance-warning" style="color: #ef4444; font-size: 0.8rem; text-align: center; display: none;">
+            هشدار: تعداد اتصالات بسیار بالاست. رندر ممکن است کمی طول بکشد.
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="network-canvas"></canvas>
+        <div id="status" class="status-overlay">در حال پردازش لایه...</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('network-canvas');
+        const ctx = canvas.getContext('2d', { alpha: false }); // Optimize performance
+        
+        // UI Elements
+        const inNodes = document.getElementById('in-nodes');
+        const hiddenLayers = document.getElementById('hidden-layers');
+        const hiddenNodes = document.getElementById('hidden-nodes');
+        const outNodes = document.getElementById('out-nodes');
+        const btnBuild = document.getElementById('btn-build');
+        const btnSimulate = document.getElementById('btn-simulate');
+        const statusOverlay = document.getElementById('status');
+        const perfWarning = document.getElementById('performance-warning');
+
+        // Displays
+        const displays = {
+            'in-nodes': document.getElementById('val-in'),
+            'hidden-layers': document.getElementById('val-hl'),
+            'hidden-nodes': document.getElementById('val-hn'),
+            'out-nodes': document.getElementById('val-out')
+        };
+
+        // Network State
+        let network = []; // Array of layers, each is an array of objects {x, y, active}
+        let isAnimating = false;
+        let animationStep = -1;
+
+        // Resize Canvas
+        function resize() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            if(!isAnimating) drawNetwork();
+        }
+        window.addEventListener('resize', resize);
+
+        // Update display values
+        function updateDisplays() {
+            ['in-nodes', 'hidden-layers', 'hidden-nodes', 'out-nodes'].forEach(id => {
+                const el = document.getElementById(id);
+                displays[id].innerText = el.value;
+                el.addEventListener('input', (e) => {
+                    displays[id].innerText = e.target.value;
+                    checkPerformance();
+                });
+            });
+        }
+        
+        function checkPerformance() {
+            const hL = parseInt(hiddenLayers.value);
+            const hN = parseInt(hiddenNodes.value);
+            const totalConnections = hL * hN * hN; // Rough estimate of inner connections
+            if (totalConnections > 500000) {
+                perfWarning.style.display = 'block';
+            } else {
+                perfWarning.style.display = 'none';
+            }
+        }
+
+        // Build Network Structure
+        function buildNetwork() {
+            const numIn = parseInt(inNodes.value);
+            const numHL = parseInt(hiddenLayers.value);
+            const numHN = parseInt(hiddenNodes.value);
+            const numOut = parseInt(outNodes.value);
+
+            const layersConfig = [numIn];
+            for (let i = 0; i < numHL; i++) layersConfig.push(numHN);
+            layersConfig.push(numOut);
+
+            network = [];
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            // Layout (Left to Right)
+            const paddingX = w * 0.1;
+            const paddingY = h * 0.1;
+            const usableW = w - 2 * paddingX;
+            const usableH = h - 2 * paddingY;
+            
+            const layerSpacing = usableW / (layersConfig.length - 1);
+
+            for (let i = 0; i < layersConfig.length; i++) {
+                const numNodes = layersConfig[i];
+                const layer = [];
+                // Calculate node size based on count to prevent overlap
+                const maxNodeSize = 8;
+                const nodeSize = Math.min(maxNodeSize, Math.max(1, (usableH / numNodes) * 0.4));
+                
+                const nodeSpacing = numNodes > 1 ? usableH / (numNodes - 1) : 0;
+                const startY = numNodes > 1 ? paddingY : h / 2;
+
+                for (let j = 0; j < numNodes; j++) {
+                    layer.push({
+                        x: paddingX + i * layerSpacing,
+                        y: startY + j * nodeSpacing,
+                        size: nodeSize,
+                        active: 0 // 0 to 1
+                    });
+                }
+                network.push(layer);
+            }
+            
+            isAnimating = false;
+            statusOverlay.style.display = 'none';
+            drawNetwork();
+        }
+
+        // Draw the network
+        function drawNetwork(activeLayerIndex = -1) {
+            // Draw Background
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Dynamically adjust edge opacity based on density
+            let maxNodesInAdjacentLayers = 0;
+            for(let i=0; i<network.length-1; i++) {
+                const connections = network[i].length * network[i+1].length;
+                if(connections > maxNodesInAdjacentLayers) maxNodesInAdjacentLayers = connections;
+            }
+            
+            // Extremely low opacity if millions of lines
+            const baseOpacity = Math.max(0.005, Math.min(0.2, 500 / maxNodesInAdjacentLayers));
+
+            // Draw Edges (Batching for high performance)
+            for (let i = 0; i < network.length - 1; i++) {
+                const layerA = network[i];
+                const layerB = network[i + 1];
+                
+                const isEdgeActive = (i === activeLayerIndex);
+                ctx.strokeStyle = isEdgeActive ? `rgba(56, 189, 248, ${Math.min(0.5, baseOpacity * 5)})` : `rgba(148, 163, 184, ${baseOpacity})`;
+                ctx.lineWidth = isEdgeActive ? 1.5 : 0.5;
+
+                ctx.beginPath();
+                for (let a = 0; a < layerA.length; a++) {
+                    for (let b = 0; b < layerB.length; b++) {
+                        ctx.moveTo(layerA[a].x, layerA[a].y);
+                        ctx.lineTo(layerB[b].x, layerB[b].y);
+                    }
+                }
+                ctx.stroke();
+            }
+
+            // Draw Nodes
+            for (let i = 0; i < network.length; i++) {
+                const layer = network[i];
+                const isLayerActive = (i === activeLayerIndex || (i === activeLayerIndex + 1));
+                
+                ctx.fillStyle = isLayerActive ? '#38bdf8' : '#334155';
+                
+                ctx.beginPath();
+                for (let j = 0; j < layer.length; j++) {
+                    const node = layer[j];
+                    ctx.moveTo(node.x + node.size, node.y);
+                    ctx.arc(node.x, node.y, node.size, 0, Math.PI * 2);
+                }
+                ctx.fill();
+            }
+        }
+
+        // Animate Forward Pass
+        function simulateForwardPass() {
+            if (isAnimating) return;
+            isAnimating = true;
+            animationStep = 0;
+            statusOverlay.style.display = 'block';
+            statusOverlay.innerText = "شروع پردازش داده از لایه ورودی...";
+
+            const stepDuration = 800; // ms per layer
+            let startTime = performance.now();
+
+            function animate(currentTime) {
+                const elapsed = currentTime - startTime;
+                
+                if (elapsed > stepDuration) {
+                    animationStep++;
+                    startTime = currentTime;
+                    
+                    if (animationStep >= network.length - 1) {
+                        // Reached output
+                        statusOverlay.innerText = "پردازش تکمیل شد - خروجی تولید گردید";
+                        drawNetwork(animationStep);
+                        setTimeout(() => {
+                            isAnimating = false;
+                            statusOverlay.style.display = 'none';
+                            drawNetwork(-1); // Reset colors
+                        }, 2000);
+                        return;
+                    }
+                }
+
+                // Status Text Update
+                if(animationStep === 0) {
+                    statusOverlay.innerText = "پردازش لایه ورودی و انتقال ویژگی‌های پایه";
+                } else if (animationStep === network.length - 2) {
+                    statusOverlay.innerText = "پردازش نهایی در لایه خروجی برای تصمیم‌گیری";
+                } else {
+                    statusOverlay.innerText = `درک الگوهای پیچیده در لایه پنهان ${animationStep}`;
+                }
+
+                drawNetwork(animationStep);
+                requestAnimationFrame(animate);
+            }
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Event Listeners
+        btnBuild.addEventListener('click', buildNetwork);
+        btnSimulate.addEventListener('click', simulateForwardPass);
+
+        // Init
+        updateDisplays();
+        checkPerformance();
+        
+        // Initial setup timeout to allow rendering context to stabilize
+        setTimeout(() => {
+            resize();
+            buildNetwork();
+        }, 100);
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>شبیه‌ساز ریاضی و انیمیشنی شبکه عصبی</title>
+    <style>
+        :root {
+            --bg-dark: #111827;
+            --panel-bg: #1f2937;
+            --text-light: #f3f4f6;
+            --text-dim: #9ca3af;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --node-bg: #374151;
+            --node-border: #60a5fa;
+            --math-bg: #111827;
+            --success: #10b981;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .sidebar {
+            width: 400px;
+            background-color: var(--panel-bg);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            box-shadow: -4px 0 15px rgba(0,0,0,0.5);
+            z-index: 10;
+            overflow-y: auto;
+            border-left: 1px solid #374151;
+        }
+
+        h1 { font-size: 1.2rem; color: var(--accent); text-align: center; margin-bottom: 0.5rem; }
+        
+        p.desc { font-size: 0.9rem; color: var(--text-dim); line-height: 1.5; text-align: justify; margin-bottom: 1rem;}
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--math-bg);
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid #374151;
+        }
+
+        .input-group input {
+            width: 80px;
+            background: var(--panel-bg);
+            border: 1px solid var(--accent);
+            color: white;
+            padding: 5px;
+            border-radius: 4px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        button {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+            margin-top: 1rem;
+        }
+
+        button:hover { background-color: var(--accent-hover); }
+        
+        button:disabled { background-color: #4b5563; cursor: not-allowed; }
+
+        .math-panel {
+            margin-top: 1rem;
+            background: #000;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #10b981;
+            direction: ltr;
+            text-align: left;
+            min-height: 250px;
+            border: 1px solid #374151;
+            overflow-y: auto;
+        }
+        
+        .math-title {
+            direction: rtl;
+            text-align: right;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 0.9rem;
+            color: var(--accent);
+            margin-bottom: 10px;
+            border-bottom: 1px dashed #374151;
+            padding-bottom: 5px;
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h1>مشاهده فرمول‌ها و یادگیری شبکه</h1>
+        <p class="desc">
+            در این شبکه کوچک (۲ ورودی، ۲ نود پنهان، ۱ خروجی) می‌توانید دقیقاً ببینید مقادیر چگونه در وزن‌ها ضرب شده، جمع می‌شوند و با تابع فعال‌ساز (ReLU) تغییر می‌کنند. این دقیقاً همان اتفاقی است که در شبکه‌های میلیاردی رخ می‌دهد.
+        </p>
+
+        <div class="input-group">
+            <label>مقدار ورودی اول (X1):</label>
+            <input type="number" id="in1" value="2.0" step="0.5">
+        </div>
+        <div class="input-group">
+            <label>مقدار ورودی دوم (X2):</label>
+            <input type="number" id="in2" value="0.5" step="0.5">
+        </div>
+
+        <button id="btn-start">شروع پردازش و نمایش محاسبات</button>
+
+        <div class="math-panel" id="math-display">
+            <div class="math-title">لاگ محاسبات زنده:</div>
+            <div id="math-content"></div>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="nn-canvas"></canvas>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('nn-canvas');
+        const ctx = canvas.getContext('2d');
+        const mathContent = document.getElementById('math-content');
+        const btnStart = document.getElementById('btn-start');
+        
+        // Setup Resize
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Network Architecture
+        let network = {};
+        
+        function initNetwork() {
+            const w = canvas.width;
+            const h = canvas.height;
+            const startX = w * 0.15;
+            const midX = w * 0.5;
+            const endX = w * 0.85;
+
+            network = {
+                layers: [
+                    // Layer 0: Inputs
+                    [
+                        { id: 'X1', label: 'X1', x: startX, y: h * 0.35, val: parseFloat(document.getElementById('in1').value), bias: 0 },
+                        { id: 'X2', label: 'X2', x: startX, y: h * 0.65, val: parseFloat(document.getElementById('in2').value), bias: 0 }
+                    ],
+                    // Layer 1: Hidden
+                    [
+                        { id: 'H1', label: 'H1', x: midX, y: h * 0.25, val: 0, bias: 0.1 },
+                        { id: 'H2', label: 'H2', x: midX, y: h * 0.75, val: 0, bias: -0.2 }
+                    ],
+                    // Layer 2: Output
+                    [
+                        { id: 'Out', label: 'Output', x: endX, y: h * 0.5, val: 0, bias: 0.5 }
+                    ]
+                ],
+                edges: [
+                    // L0 -> L1
+                    { from: 'X1', to: 'H1', w: 0.8 }, { from: 'X1', to: 'H2', w: 0.3 },
+                    { from: 'X2', to: 'H1', w: -0.4 }, { from: 'X2', to: 'H2', w: 0.9 },
+                    // L1 -> L2
+                    { from: 'H1', to: 'Out', w: 1.2 }, { from: 'H2', to: 'Out', w: -1.1 }
+                ]
+            };
+        }
+
+        function drawNode(node, isActive) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, 40, 0, Math.PI * 2);
+            ctx.fillStyle = isActive ? '#1d4ed8' : '#374151';
+            ctx.fill();
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = isActive ? '#60a5fa' : '#4b5563';
+            ctx.stroke();
+            
+            // Draw Label
+            ctx.fillStyle = 'white';
+            ctx.font = 'bold 18px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.label, node.x, node.y - 10);
+            
+            // Draw Value
+            ctx.fillStyle = '#10b981';
+            ctx.font = '14px monospace';
+            const valStr = node.val !== null ? node.val.toFixed(2) : '?';
+            ctx.fillText(valStr, node.x, node.y + 12);
+            
+            // Draw Bias (if any)
+            if (node.bias !== 0) {
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = '12px monospace';
+                ctx.fillText(`b: ${node.bias > 0 ? '+'+node.bias : node.bias}`, node.x, node.y + 60);
+            }
+        }
+
+        function drawEdge(edge, isHighlight) {
+            const fromNode = findNode(edge.from);
+            const toNode = findNode(edge.to);
+            
+            ctx.beginPath();
+            ctx.moveTo(fromNode.x, fromNode.y);
+            ctx.lineTo(toNode.x, toNode.y);
+            ctx.lineWidth = isHighlight ? 4 : 2;
+            ctx.strokeStyle = isHighlight ? '#60a5fa' : '#374151';
+            ctx.stroke();
+
+            // Draw Weight
+            const midX = (fromNode.x + toNode.x) / 2;
+            const midY = (fromNode.y + toNode.y) / 2;
+            ctx.fillStyle = '#9ca3af';
+            ctx.font = '14px monospace';
+            ctx.textAlign = 'center';
+            
+            // Add a little background for weight text
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(midX - 15, midY - 10, 30, 20);
+            
+            ctx.fillStyle = '#f87171';
+            ctx.fillText(edge.w, midX, midY + 4);
+        }
+
+        function findNode(id) {
+            for (let layer of network.layers) {
+                for (let n of layer) {
+                    if (n.id === id) return n;
+                }
+            }
+            return null;
+        }
+        
+        function drawPacket(x, y, value) {
+            ctx.beginPath();
+            ctx.arc(x, y, 15, 0, Math.PI * 2);
+            ctx.fillStyle = '#fbbf24';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.fillStyle = 'black';
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(value.toFixed(2), x, y);
+        }
+
+        function drawStaticNetwork() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            network.edges.forEach(e => drawEdge(e, false));
+            network.layers.forEach(layer => layer.forEach(n => drawNode(n, false)));
+        }
+
+        // Animation System
+        let animationState = { active: false };
+
+        function relu(x) {
+            return Math.max(0, x);
+        }
+
+        function appendMath(html) {
+            mathContent.innerHTML += `<div>${html}</div>`;
+            mathContent.parentElement.scrollTop = mathContent.parentElement.scrollHeight;
+        }
+
+        async function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        async function animateLayerTransition(layerIndex) {
+            const startNodes = network.layers[layerIndex];
+            const endNodes = network.layers[layerIndex + 1];
+            
+            // Find edges for this layer
+            const activeEdges = network.edges.filter(e => startNodes.some(n => n.id === e.from));
+            
+            // Animation loop for moving packets
+            const duration = 2000;
+            const startTime = performance.now();
+            
+            return new Promise((resolve) => {
+                function step(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    
+                    // Draw normal network
+                    network.edges.forEach(e => drawEdge(e, activeEdges.includes(e)));
+                    network.layers.forEach(layer => layer.forEach(n => drawNode(n, startNodes.includes(n))));
+                    
+                    // Draw moving packets
+                    activeEdges.forEach(e => {
+                        const from = findNode(e.from);
+                        const to = findNode(e.to);
+                        const currentX = from.x + (to.x - from.x) * progress;
+                        const currentY = from.y + (to.y - from.y) * progress;
+                        
+                        // Value being sent: from.val * weight
+                        const packetVal = from.val * e.w;
+                        drawPacket(currentX, currentY, packetVal);
+                    });
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(step);
+                    } else {
+                        // Reached destination, compute values
+                        endNodes.forEach(en => {
+                            let sum = en.bias;
+                            let mathStr = `Σ ${en.label} = (${en.bias})`;
+                            
+                            activeEdges.forEach(e => {
+                                if (e.to === en.id) {
+                                    const fn = findNode(e.from);
+                                    const val = fn.val * e.w;
+                                    sum += val;
+                                    mathStr += ` + (<span style="color:#60a5fa">${fn.label}</span>*<span style="color:#f87171">${e.w}</span>)`;
+                                }
+                            });
+                            
+                            // Show summation
+                            appendMath(mathStr + ` = <b>${sum.toFixed(2)}</b>`);
+                            
+                            // Apply Activation
+                            const finalVal = relu(sum);
+                            en.val = finalVal;
+                            
+                            appendMath(`${en.label} = ReLU(${sum.toFixed(2)}) = <span style="color:#fbbf24">${finalVal.toFixed(2)}</span>`);
+                            appendMath('-----------------');
+                        });
+                        
+                        drawStaticNetwork();
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        async function runSimulation() {
+            btnStart.disabled = true;
+            mathContent.innerHTML = '';
+            initNetwork();
+            drawStaticNetwork();
+            
+            appendMath('<b>-- پردازش لایه مخفی --</b>');
+            await animateLayerTransition(0);
+            
+            await sleep(1000);
+            
+            appendMath('<br><b>-- پردازش لایه خروجی --</b>');
+            await animateLayerTransition(1);
+            
+            appendMath('<br><span style="color:#10b981; font-size:1.2em;">پردازش تکمیل شد. خروجی نهایی: ' + network.layers[2][0].val.toFixed(2) + '</span>');
+            
+            // Final highlight
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            network.edges.forEach(e => drawEdge(e, false));
+            network.layers.forEach(layer => layer.forEach(n => drawNode(n, n.id === 'Out')));
+            
+            btnStart.disabled = false;
+        }
+
+        btnStart.addEventListener('click', runSimulation);
+
+        // Initial draw
+        initNetwork();
+        // Clear node values for initial visual state
+        network.layers[1].forEach(n => n.val = null);
+        network.layers[2].forEach(n => n.val = null);
+        drawStaticNetwork();
+
+    </script>
+</body>
+</html>
