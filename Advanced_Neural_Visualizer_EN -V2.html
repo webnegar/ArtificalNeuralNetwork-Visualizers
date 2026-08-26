@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comprehensive Neural Network Simulator</title>
+    <style>
+        :root {
+            --bg-dark: #111827;
+            --panel-bg: #1f2937;
+            --text-light: #f3f4f6;
+            --text-dim: #9ca3af;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --math-bg: #000000;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        body { background-color: var(--bg-dark); color: var(--text-light); display: flex; height: 100vh; overflow: hidden; }
+
+        /* Sidebar Styling */
+        .sidebar {
+            width: 420px;
+            background-color: var(--panel-bg);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            box-shadow: 4px 0 15px rgba(0,0,0,0.5);
+            z-index: 10;
+            overflow-y: auto;
+            border-right: 1px solid #374151;
+        }
+
+        h1 { font-size: 1.2rem; color: var(--accent); text-align: center; }
+        
+        .section-title {
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            border-bottom: 1px solid #374151;
+            padding-bottom: 5px;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+
+        /* Config Controls */
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .control-item {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+            font-size: 0.85rem;
+        }
+        
+        .control-item input {
+            background: var(--bg-dark);
+            border: 1px solid #4b5563;
+            color: white;
+            padding: 5px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .btn-group { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+        button {
+            flex: 1;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: bold;
+        }
+
+        button:hover { background-color: var(--accent-hover); }
+        button:disabled { background-color: #4b5563; cursor: not-allowed; }
+        button.secondary { background-color: #374151; border: 1px solid #4b5563; }
+        button.secondary:hover { background-color: #4b5563; }
+
+        /* Dynamic Inputs Container */
+        #dynamic-inputs {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            background: var(--bg-dark);
+            padding: 10px;
+            border-radius: 6px;
+        }
+        
+        .input-var {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.8rem;
+        }
+        
+        .input-var input {
+            width: 50px;
+            background: var(--panel-bg);
+            border: 1px solid var(--accent);
+            color: white;
+            padding: 3px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        /* Math Panel */
+        .math-panel {
+            flex: 1;
+            background: var(--math-bg);
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #10b981;
+            text-align: left;
+            border: 1px solid #374151;
+            overflow-y: auto;
+            min-height: 200px;
+        }
+
+        /* Canvas */
+        .canvas-container { flex: 1; position: relative; }
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* Modal for Matrices */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+        }
+        
+        .modal-content {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--panel-bg);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid #4b5563;
+            width: 90%;
+            max-width: 1000px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+        }
+
+        .modal-header {
+            cursor: grab;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #4b5563;
+            margin-bottom: 1rem;
+            user-select: none;
+            position: relative;
+        }
+
+        .modal-header:active {
+            cursor: grabbing;
+        }
+
+        .close-btn {
+            position: absolute;
+            top: -5px; right: 0;
+            color: white;
+            font-size: 1.8rem;
+            cursor: pointer;
+        }
+        
+        .close-btn:hover { color: #f87171; }
+
+        .matrices-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        /* Scrollbar styling for matrices */
+        .matrices-container::-webkit-scrollbar { width: 8px; }
+        .matrices-container::-webkit-scrollbar-track { background: var(--bg-dark); border-radius: 4px; }
+        .matrices-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+        .matrices-container::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+
+        .matrix-wrapper {
+            background: var(--bg-dark);
+            padding: 1rem;
+            border-radius: 8px;
+            border: 1px solid #374151;
+            flex: 1;
+            min-width: 300px;
+        }
+        
+        .matrix-wrapper h3 { color: var(--accent); margin-bottom: 10px; font-size: 1rem; text-align: center;}
+
+        table.matrix {
+            border-collapse: collapse;
+            font-family: monospace;
+            color: #f3f4f6;
+            width: 100%;
+        }
+        
+        table.matrix td, table.matrix th {
+            padding: 8px 12px;
+            text-align: center;
+            border: 1px solid #4b5563;
+        }
+        
+        table.matrix th { color: #9ca3af; font-size: 0.9rem; }
+        table.matrix td { color: #f87171; font-size: 1.05rem; }
+        table.matrix .bias-col td { color: #fbbf24; background: rgba(251,191,36,0.1); }
+        
+    </style>
+</head>
+<body>
+
+    <div class="sidebar">
+        <h1>Network Architecture</h1>
+        
+        <div class="section-title">Architecture Settings</div>
+        <div class="controls-grid">
+            <div class="control-item">
+                <label>Input Nodes:</label>
+                <input type="number" id="cfg-in" value="2" min="1" max="5">
+            </div>
+            <div class="control-item">
+                <label>Hidden Layers:</label>
+                <input type="number" id="cfg-hl" value="1" min="1" max="3">
+            </div>
+            <div class="control-item">
+                <label>Nodes per Hidden Layer:</label>
+                <input type="number" id="cfg-hn" value="3" min="1" max="6">
+            </div>
+            <div class="control-item">
+                <label>Output Nodes:</label>
+                <input type="number" id="cfg-out" value="1" min="1" max="4">
+            </div>
+        </div>
+
+        <div class="btn-group">
+            <button id="btn-rebuild" class="secondary">New Network (Random Weights)</button>
+            <button id="btn-show-matrices" class="secondary">Show Weight Matrices</button>
+        </div>
+
+        <div class="section-title">Input Values (Data)</div>
+        <div id="dynamic-inputs"></div>
+
+        <button id="btn-start">Start Layer-by-Layer Simulation</button>
+
+        <div class="section-title">Live Calculation Log:</div>
+        <div class="math-panel" id="math-content"></div>
+    </div>
+
+    <div class="canvas-container">
+        <canvas id="nn-canvas"></canvas>
+    </div>
+
+    <!-- Draggable Modal for Matrices -->
+    <div id="matrix-modal" class="modal">
+        <div class="modal-content" id="modal-content">
+            <div class="modal-header" id="modal-header">
+                <span class="close-btn" id="close-modal">&times;</span>
+                <h2 style="color:white; text-align:center; margin: 0 0 5px 0;">Weight (W) and Bias (b) Matrices</h2>
+                <p style="color:#9ca3af; text-align:center; font-size:0.9rem; margin:0;">Drag this header to move the window. Scroll below if matrices are hidden.</p>
+            </div>
+            <div class="matrices-container" id="matrices-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('nn-canvas');
+        const ctx = canvas.getContext('2d');
+        const mathContent = document.getElementById('math-content');
+        
+        let network = {};
+        
+        // Format numbers strictly
+        function fmt(num) { return Number(num).toFixed(2); }
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            if(!animationState.active) drawStaticNetwork();
+        }
+        window.addEventListener('resize', resizeCanvas);
+
+        // Generate Random Weights
+        function randW() { return (Math.random() * 2 - 1); }
+
+        function generateNetwork() {
+            const numIn = parseInt(document.getElementById('cfg-in').value);
+            const numHL = parseInt(document.getElementById('cfg-hl').value);
+            const numHN = parseInt(document.getElementById('cfg-hn').value);
+            const numOut = parseInt(document.getElementById('cfg-out').value);
+
+            // Rebuild Input UI
+            const inputContainer = document.getElementById('dynamic-inputs');
+            inputContainer.innerHTML = '';
+            for(let i=1; i<=numIn; i++) {
+                inputContainer.innerHTML += `
+                    <div class="input-var">
+                        <label>X${i}</label>
+                        <input type="number" id="in-val-${i}" value="${fmt(Math.random())}" step="0.1">
+                    </div>
+                `;
+            }
+
+            const layerCounts = [numIn];
+            for(let i=0; i<numHL; i++) layerCounts.push(numHN);
+            layerCounts.push(numOut);
+
+            network = { layers: [], edges: [] };
+            
+            const w = canvas.width;
+            const h = canvas.height;
+            const paddingX = w * 0.1;
+            const usableW = w - 2 * paddingX;
+            const layerSpacing = usableW / (layerCounts.length - 1);
+
+            // Create Nodes
+            for(let i=0; i<layerCounts.length; i++) {
+                const count = layerCounts[i];
+                const layer = [];
+                const paddingY = h * 0.1;
+                const usableH = h - 2 * paddingY;
+                const nodeSpacing = count > 1 ? usableH / (count - 1) : 0;
+                const startY = count > 1 ? paddingY : h / 2;
+                
+                let prefix = i === 0 ? 'X' : (i === layerCounts.length - 1 ? 'O' : `H${i}`);
+
+                for(let j=0; j<count; j++) {
+                    let val = i === 0 ? parseFloat(document.getElementById(`in-val-${j+1}`).value) : 0;
+                    layer.push({
+                        id: `${prefix}_${j+1}`,
+                        label: `${prefix}${j+1}`,
+                        x: paddingX + (i * layerSpacing),
+                        y: startY + (j * nodeSpacing),
+                        val: i === 0 ? val : null,
+                        bias: i === 0 ? 0 : randW(),
+                        radius: Math.min(30, 250 / Math.max(numHN, numIn)) // dynamic size
+                    });
+                }
+                network.layers.push(layer);
+            }
+
+            // Create Edges
+            for(let i=0; i<network.layers.length - 1; i++) {
+                const layerA = network.layers[i];
+                const layerB = network.layers[i+1];
+                for(let a of layerA) {
+                    for(let b of layerB) {
+                        network.edges.push({
+                            from: a.id,
+                            to: b.id,
+                            w: randW()
+                        });
+                    }
+                }
+            }
+            
+            mathContent.innerHTML = '<span style="color:#9ca3af;">Network generated with random weights. Press Start to run simulation.</span>';
+            drawStaticNetwork();
+            generateMatrixHTML();
+        }
+
+        // Draw functions
+        function drawNode(node, isActive) {
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fillStyle = isActive ? '#1d4ed8' : '#374151';
+            ctx.fill();
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = isActive ? '#60a5fa' : '#4b5563';
+            ctx.stroke();
+            
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${Math.max(12, node.radius * 0.5)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(node.label, node.x, node.y - node.radius*0.3);
+            
+            ctx.fillStyle = '#10b981';
+            ctx.font = `bold ${Math.max(11, node.radius * 0.45)}px monospace`;
+            const valStr = node.val !== null ? fmt(node.val) : '?';
+            ctx.fillText(valStr, node.x, node.y + node.radius*0.35);
+            
+            if (node.bias !== 0) {
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = 'bold 14px monospace';
+                ctx.fillText(`b:${fmt(node.bias)}`, node.x, node.y + node.radius + 18);
+            }
+        }
+
+        function drawEdge(edge, isHighlight) {
+            const fromNode = network.layers.flat().find(n => n.id === edge.from);
+            const toNode = network.layers.flat().find(n => n.id === edge.to);
+            
+            ctx.beginPath();
+            ctx.moveTo(fromNode.x, fromNode.y);
+            ctx.lineTo(toNode.x, toNode.y);
+            ctx.lineWidth = isHighlight ? 3 : 1;
+            ctx.strokeStyle = isHighlight ? '#60a5fa' : 'rgba(75, 85, 99, 0.4)';
+            ctx.stroke();
+
+            if (isHighlight || network.layers[0].length <= 3) {
+                const midX = fromNode.x + (toNode.x - fromNode.x) * 0.3; // Closer to start
+                const midY = fromNode.y + (toNode.y - fromNode.y) * 0.3;
+                
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(midX - 22, midY - 12, 44, 24);
+                ctx.fillStyle = '#f87171';
+                ctx.font = 'bold 14px monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(fmt(edge.w), midX, midY + 4);
+            }
+        }
+
+        function drawPacket(x, y, value, baseRadius) {
+            // Increased the size of the packet circle
+            const packetRadius = Math.max(18, baseRadius * 0.7); 
+            
+            ctx.beginPath();
+            ctx.arc(x, y, packetRadius, 0, Math.PI * 2);
+            ctx.fillStyle = '#fbbf24';
+            ctx.fill();
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.fillStyle = 'black';
+            // Increased font size significantly for readability
+            ctx.font = `bold ${Math.max(13, packetRadius * 0.6)}px monospace`; 
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(fmt(value), x, y);
+        }
+
+        function drawStaticNetwork() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            network.edges.forEach(e => drawEdge(e, false));
+            network.layers.forEach(layer => layer.forEach(n => drawNode(n, false)));
+        }
+
+        // Display Matrices
+        function generateMatrixHTML() {
+            const container = document.getElementById('matrices-container');
+            container.innerHTML = '';
+            
+            for(let i=0; i<network.layers.length - 1; i++) {
+                const layerFrom = network.layers[i];
+                const layerTo = network.layers[i+1];
+                
+                let html = `<div class="matrix-wrapper">
+                    <h3>Layer ${i+1} to ${i+2} Connections</h3>
+                    <table class="matrix">
+                    <tr><th>Dest \ Src</th>`;
+                
+                layerFrom.forEach(nf => html += `<th>${nf.label}</th>`);
+                html += `<th style="color:#fbbf24">Bias</th></tr>`;
+                
+                layerTo.forEach(nt => {
+                    html += `<tr><th>${nt.label}</th>`;
+                    layerFrom.forEach(nf => {
+                        const edge = network.edges.find(e => e.from === nf.id && e.to === nt.id);
+                        html += `<td>${fmt(edge.w)}</td>`;
+                    });
+                    html += `<td class="bias-col">${fmt(nt.bias)}</td></tr>`;
+                });
+                
+                html += `</table></div>`;
+                container.innerHTML += html;
+            }
+        }
+
+        // Animation System
+        let animationState = { active: false };
+        function relu(x) { return Math.max(0, x); }
+        function appendMath(html) {
+            mathContent.innerHTML += `<div>${html}</div>`;
+            mathContent.scrollTop = mathContent.scrollHeight;
+        }
+
+        async function animateLayerTransition(layerIndex) {
+            const startNodes = network.layers[layerIndex];
+            const endNodes = network.layers[layerIndex + 1];
+            const activeEdges = network.edges.filter(e => startNodes.some(n => n.id === e.from));
+            
+            const duration = 2500;
+            const startTime = performance.now();
+            
+            return new Promise((resolve) => {
+                function step(currentTime) {
+                    const elapsed = currentTime - startTime;
+                    const progress = Math.min(elapsed / duration, 1);
+                    
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    network.edges.forEach(e => drawEdge(e, activeEdges.includes(e)));
+                    network.layers.forEach(layer => layer.forEach(n => drawNode(n, startNodes.includes(n))));
+                    
+                    activeEdges.forEach(e => {
+                        const from = network.layers.flat().find(n => n.id === e.from);
+                        const to = network.layers.flat().find(n => n.id === e.to);
+                        const currentX = from.x + (to.x - from.x) * progress;
+                        const currentY = from.y + (to.y - from.y) * progress;
+                        drawPacket(currentX, currentY, from.val * e.w, from.radius);
+                    });
+                    
+                    if (progress < 1) {
+                        requestAnimationFrame(step);
+                    } else {
+                        endNodes.forEach(en => {
+                            let sum = en.bias;
+                            let mathStr = `Σ ${en.label} = (<span style="color:#fbbf24">${fmt(en.bias)}</span>)`;
+                            
+                            activeEdges.forEach(e => {
+                                if (e.to === en.id) {
+                                    const fn = network.layers.flat().find(n => n.id === e.from);
+                                    const val = fn.val * e.w;
+                                    sum += val;
+                                    mathStr += ` + (<span style="color:#60a5fa">${fmt(fn.val)}</span>*<span style="color:#f87171">${fmt(e.w)}</span>)`;
+                                }
+                            });
+                            
+                            appendMath(mathStr + ` = <b>${fmt(sum)}</b>`);
+                            en.val = relu(sum);
+                            appendMath(`${en.label} = ReLU(${fmt(sum)}) = <span style="color:#10b981">${fmt(en.val)}</span>`);
+                            appendMath('---');
+                        });
+                        drawStaticNetwork();
+                        resolve();
+                    }
+                }
+                requestAnimationFrame(step);
+            });
+        }
+
+        async function runSimulation() {
+            if (animationState.active) return;
+            animationState.active = true;
+            document.getElementById('btn-start').disabled = true;
+            mathContent.innerHTML = '';
+            
+            // Update inputs from UI and clear downstream
+            network.layers[0].forEach((n, idx) => {
+                n.val = parseFloat(document.getElementById(`in-val-${idx+1}`).value);
+            });
+            for(let i=1; i<network.layers.length; i++) {
+                network.layers[i].forEach(n => n.val = null);
+            }
+            drawStaticNetwork();
+            
+            for(let i=0; i<network.layers.length - 1; i++) {
+                appendMath(`<b>-- Processing Layer ${i} to ${i+1} --</b>`);
+                await animateLayerTransition(i);
+                await new Promise(r => setTimeout(r, 800));
+            }
+            
+            appendMath('<br><span style="color:#10b981; font-size:1.1em;">Processing Complete!</span>');
+            
+            // Highlight output
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            network.edges.forEach(e => drawEdge(e, false));
+            network.layers.forEach((layer, idx) => layer.forEach(n => drawNode(n, idx === network.layers.length - 1)));
+            
+            animationState.active = false;
+            document.getElementById('btn-start').disabled = false;
+        }
+
+        // Events
+        document.getElementById('btn-rebuild').addEventListener('click', generateNetwork);
+        document.getElementById('btn-start').addEventListener('click', runSimulation);
+        
+        // Modal Dragging Logic
+        const modal = document.getElementById('matrix-modal');
+        const modalContent = document.getElementById('modal-content');
+        const modalHeader = document.getElementById('modal-header');
+        
+        let isDragging = false;
+        let dragStartX, dragStartY;
+        let initialLeft, initialTop;
+
+        modalHeader.addEventListener('mousedown', (e) => {
+            // Only allow dragging if we aren't clicking the close button
+            if(e.target.id === 'close-modal') return; 
+            
+            isDragging = true;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            
+            const rect = modalContent.getBoundingClientRect();
+            // Switch to pixel-based absolute positioning for dragging
+            modalContent.style.left = rect.left + 'px';
+            modalContent.style.top = rect.top + 'px';
+            modalContent.style.transform = 'none';
+            
+            initialLeft = rect.left;
+            initialTop = rect.top;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - dragStartX;
+            const dy = e.clientY - dragStartY;
+            modalContent.style.left = (initialLeft + dx) + 'px';
+            modalContent.style.top = (initialTop + dy) + 'px';
+        });
+
+        window.addEventListener('mouseup', () => {
+            if(isDragging) {
+                isDragging = false;
+            }
+        });
+
+        // Open/Close Modal
+        document.getElementById('btn-show-matrices').addEventListener('click', () => { 
+            modal.style.display = 'block'; 
+            // Reset position to center on open
+            modalContent.style.left = '50%';
+            modalContent.style.top = '10%';
+            modalContent.style.transform = 'translateX(-50%)';
+        });
+        
+        document.getElementById('close-modal').addEventListener('click', () => { 
+            modal.style.display = 'none'; 
+        });
+
+        // Input sync
+        document.getElementById('dynamic-inputs').addEventListener('input', (e) => {
+            if(e.target.tagName === 'INPUT') {
+                const idx = parseInt(e.target.id.split('-')[2]) - 1;
+                network.layers[0][idx].val = parseFloat(e.target.value);
+                if(!animationState.active) drawStaticNetwork();
+            }
+        });
+
+        // Initialize
+        setTimeout(() => {
+            resizeCanvas();
+            generateNetwork();
+        }, 100);
+
+    </script>
+</body>
+</html>
