@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Linear Regression – آموزش تعاملی</title>
+<style>
+  :root {
+    --bg:#0f1420; --panel:#171e2e; --panel2:#1e2740; --border:#2b3652;
+    --text:#e6eaf5; --muted:#8d99b8; --blue:#4d8dff; --red:#ff5c6c;
+    --green:#3ddc97; --yellow:#ffd166; --purple:#b48cff;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text);
+    font-family:"Vazirmatn","Tahoma","Segoe UI",sans-serif; height:100vh; display:flex; flex-direction:column; }
+  header { padding:10px 20px; border-bottom:1px solid var(--border); display:flex; align-items:baseline; gap:16px; }
+  header h1 { margin:0; font-size:20px; }
+  header span { color:var(--muted); font-size:13px; }
+  main { flex:1; display:flex; gap:12px; padding:12px; min-height:0; }
+  #stage, #stage2 { flex:1; min-width:0; background:var(--panel); border:1px solid var(--border); border-radius:12px; position:relative; }
+  canvas#plot, canvas#plot3 { width:100%; height:100%; display:block; border-radius:12px; touch-action:none; cursor:crosshair; }
+  #eq, #eq2 { position:absolute; top:10px; left:50%; transform:translateX(-50%); background:rgba(23,30,46,.92);
+    border:1px solid var(--border); border-radius:12px; padding:8px 18px; direction:ltr; text-align:center;
+    font-family:"Cambria Math","STIX Two Math","DejaVu Sans",serif; pointer-events:none; white-space:nowrap; }
+  #eq .main, #eq2 .main { font-size:26px; font-variant-numeric:tabular-nums; }
+  #eq .sub, #eq2 .sub { font-size:13px; color:var(--muted); margin-top:3px; font-variant-numeric:tabular-nums; min-height:18px; }
+  #hint, #hint2 { position:absolute; bottom:10px; left:14px; font-size:12px; color:var(--muted); direction:rtl; pointer-events:none; }
+  aside { flex-shrink:0; width:370px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .card h2 { margin:0 0 8px; font-size:14px; color:var(--muted); font-weight:600; }
+  .math { direction:ltr; text-align:left; font-family:"Cambria Math","STIX Two Math","DejaVu Sans",serif; font-size:16px; line-height:1.9; }
+  .row { display:flex; align-items:center; gap:10px; margin:6px 0; }
+  .row label { width:62px; direction:ltr; text-align:left; font-family:"DejaVu Sans",sans-serif; font-size:14px; }
+  .row .val { width:56px; text-align:left; direction:ltr; font-variant-numeric:tabular-nums; font-size:14px; }
+  input[type=range] { flex:1; accent-color:var(--blue); }
+  .w { color:var(--blue); } .b { color:var(--green); } .e { color:var(--red); } .l { color:var(--yellow); }
+  .p { color:var(--purple); }
+  canvas#plot3 { cursor:grab; }
+  .tabs { margin-right:auto; display:flex; gap:6px; }
+  .tab { border-radius:20px; padding:6px 16px; }
+  .tab.on { background:var(--blue); border-color:var(--blue); color:#06101f; font-weight:700; }
+  .toggles { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; font-size:13px; }
+  .toggles label { display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; }
+  button { background:var(--panel2); color:var(--text); border:1px solid var(--border); border-radius:8px;
+    padding:7px 11px; font-family:inherit; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--blue); }
+  button.primary { background:var(--blue); border-color:var(--blue); color:#06101f; font-weight:700; }
+  button.danger { background:#3a1f28; border-color:#6b2a38; }
+  .stats { display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:13px; direction:ltr; font-family:"DejaVu Sans",sans-serif; }
+  .stats b { font-variant-numeric:tabular-nums; }
+  canvas#loss, canvas#loss2 { width:100%; height:110px; display:block; background:var(--panel2); border-radius:8px; }
+  .note { font-size:12px; color:var(--muted); margin-top:6px; line-height:1.7; }
+  #warn { color:var(--red); font-size:12px; min-height:16px; margin-top:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>رگرسیون خطی</h1>
+  <span class="math" id="hf" style="font-size:15px">ŷ = w·x + b</span>
+  <span id="hh1">کلیک = افزودن نقطه · کشیدن نقطه = جابه‌جایی · کشیدن زمینه = پن · چرخ ماوس = زوم · دوبار کلیک روی نقطه = حذف</span>
+<span id="hh2" style="display:none">کشیدن = چرخش صفحه · چرخ ماوس = زوم · نگه داشتن ماوس روی نقطه = جزئیات</span>
+  <div class="tabs"><button class="tab on" id="m1">یک متغیره</button><button class="tab" id="m2">دو متغیره</button></div>
+</header>
+<main>
+  <div id="stage">
+    <canvas id="plot"></canvas>
+    <div id="eq"><div class="main" id="eqMain"></div><div class="sub" id="eqSub"></div></div>
+    <div id="hint">Click: add point · Drag point: move · Drag background: pan · Wheel: zoom · Double-click point: delete</div>
+  </div>
+  <aside id="side1">
+    <div class="card">
+      <h2>پارامترهای مدل</h2>
+      <div class="row"><label class="w">w (slope)</label><input id="w" type="range" min="-3" max="3" step="0.01" value="0.3"><span class="val w" id="wv"></span></div>
+      <div class="row"><label class="b">b (bias)</label><input id="b" type="range" min="-5" max="10" step="0.01" value="6"><span class="val b" id="bv"></span></div>
+      <div class="note">w شیب خط است (با افزایش یک واحد x ، مقدار پیش‌بینی چقدر تغییر کند) و b عرض از مبدأ.</div>
+    </div>
+
+    <div class="card">
+      <h2>نمایش</h2>
+      <div class="toggles">
+        <label><input type="checkbox" id="tRes" checked> خطاها (ε)</label>
+        <label><input type="checkbox" id="tSq"> مربع خطاها</label>
+        <label><input type="checkbox" id="tTri" checked> مثلث شیب</label>
+        <label><input type="checkbox" id="tPred"> نقاط ŷ</label>
+        <label><input type="checkbox" id="tBest"> خط بهینه (Least Squares)</label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>تابع هزینه</h2>
+      <div class="math">ε<sub>i</sub> = y<sub>i</sub> − ŷ<sub>i</sub><br>
+        <span class="l">MSE = (1/n) Σ ε<sub>i</sub>²</span></div>
+      <div class="stats" style="margin-top:6px">
+        <div>n = <b id="sN"></b></div>
+        <div class="l">MSE = <b id="sMse"></b></div>
+        <div>SSE = <b id="sSse"></b></div>
+        <div>R² = <b id="sR2"></b></div>
+        <div class="w">w* = <b id="sWb"></b></div>
+        <div class="b">b* = <b id="sBb"></b></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>گرادیان کاهشی (Gradient Descent)</h2>
+      <div class="math" style="font-size:14px">w ← w − η·∂L/∂w &nbsp;&nbsp; b ← b − η·∂L/∂b</div>
+      <div class="row"><label>η (lr)</label><input id="lr" type="range" min="0.001" max="0.06" step="0.001" value="0.01"><span class="val" id="lrv"></span></div>
+      <div class="row"><label>speed</label><input id="spd" type="range" min="1" max="20" step="1" value="2"><span class="val" id="spdv"></span></div>
+      <div class="btns">
+        <button class="primary" id="bGD">▶ شروع</button>
+        <button id="bStep">یک گام</button>
+        <button id="bSolve">حل دقیق</button>
+      </div>
+      <canvas id="loss" style="margin-top:8px"></canvas>
+      <div class="note">نمودار بالا مقدار MSE را در طول گام‌ها نشان می‌دهد. η را بزرگ کنید تا واگرایی را ببینید.</div>
+      <div id="warn"></div>
+    </div>
+
+    <div class="card">
+      <h2>داده</h2>
+      <div class="btns">
+        <button id="bRand">داده تصادفی</button>
+        <button id="bNoise">نویز بیشتر</button>
+        <button id="bOut">افزودن نقطه پرت</button>
+        <button id="bView">ریست زوم/جابجایی</button>
+        <button class="danger" id="bClear">پاک کردن</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>پیش‌بینی</h2>
+      <div class="row"><label>x =</label><input id="px" type="range" min="0" max="10" step="0.1" value="6"><span class="val" id="pxv"></span></div>
+      <div class="math" id="pOut" style="font-size:14px"></div>
+    </div>
+  </aside>
+  <div id="stage2" style="display:none">
+    <canvas id="plot3"></canvas>
+    <div id="eq2"><div class="main" id="eq2Main"></div><div class="sub" id="eq2Sub"></div></div>
+    <div id="hint2">Drag: rotate · Wheel: zoom · Hover a point: details</div>
+  </div>
+  <aside id="side2" style="display:none">
+    <div class="card">
+      <h2>پارامترهای مدل (یک صفحه در فضای سه‌بعدی)</h2>
+      <div class="row"><label class="w">w₁</label><input id="w1" type="range" min="-3" max="3" step="any" value="-0.5"><span class="val w" id="w1v"></span></div>
+      <div class="row"><label class="p">w₂</label><input id="w2" type="range" min="-3" max="3" step="any" value="0.8"><span class="val p" id="w2v"></span></div>
+      <div class="row"><label class="b">b (bias)</label><input id="b2" type="range" min="-8" max="10" step="any" value="3"><span class="val b" id="b2v"></span></div>
+      <div class="note">w₁ شیب صفحه در جهت x₁ و w₂ شیب در جهت x₂ است؛ b ارتفاع صفحه در مبدأ. خط‌های قرمز خطای هر نقطه تا صفحه‌اند. صفحه تا بازه‌ی y∈[−2,12] نمایش داده می‌شود.</div>
+    </div>
+    <div class="card">
+      <h2>نمایش</h2>
+      <div class="toggles">
+        <label><input type="checkbox" id="tRes2" checked> خطاها (ε)</label>
+        <label><input type="checkbox" id="tDrop2"> خط سقوط به کف</label>
+        <label><input type="checkbox" id="tBest2"> صفحه بهینه (Least Squares)</label>
+      </div>
+      <div class="btns" style="margin-top:8px"><button id="bView2">ریست دوربین</button></div>
+    </div>
+    <div class="card">
+      <h2>تابع هزینه</h2>
+      <div class="math">ε<sub>i</sub> = y<sub>i</sub> − (w₁x₁ + w₂x₂ + b)<br><span class="l">MSE = (1/n) Σ ε<sub>i</sub>²</span></div>
+      <div class="stats" style="margin-top:6px">
+        <div>n = <b id="s2N"></b></div><div class="l">MSE = <b id="s2Mse"></b></div>
+        <div>SSE = <b id="s2Sse"></b></div><div>R² = <b id="s2R2"></b></div>
+        <div class="w">w₁* = <b id="s2W1"></b></div><div class="p">w₂* = <b id="s2W2"></b></div>
+        <div class="b">b* = <b id="s2B"></b></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>گرادیان کاهشی</h2>
+      <div class="math" style="font-size:14px">θ ← θ − η·∇L &nbsp; , &nbsp; θ = (w₁, w₂, b)</div>
+      <div class="math" style="font-size:12px;color:var(--muted)" id="g2">∂L/∂w₁ = –</div>
+      <div class="row"><label>η (lr)</label><input id="lr2" type="range" min="0.0005" max="0.02" step="0.0005" value="0.004"><span class="val" id="lr2v"></span></div>
+      <div class="row"><label>speed</label><input id="spd2" type="range" min="1" max="20" step="1" value="3"><span class="val" id="spd2v"></span></div>
+      <div class="btns"><button class="primary" id="bGD2">▶ شروع</button><button id="bStep2">یک گام</button><button id="bSolve2">حل دقیق</button></div>
+      <canvas id="loss2" style="margin-top:8px"></canvas>
+      <div class="note">چون x₁ و x₂ بزرگ‌اند، η باید کوچک‌تر از حالت یک‌متغیره باشد و b دیرتر همگرا می‌شود. (نرمال‌سازی ویژگی‌ها این را حل می‌کند.)</div>
+      <div id="warn2" style="color:var(--red);font-size:12px;min-height:16px"></div>
+    </div>
+    <div class="card">
+      <h2>داده</h2>
+      <div class="btns">
+        <button id="bRand2">داده تصادفی</button><button id="bNoise2">نویز بیشتر</button>
+        <button id="bAdd2">افزودن نقطه</button><button id="bOut2">نقطه پرت</button>
+        <button class="danger" id="bClear2">پاک کردن</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>پیش‌بینی</h2>
+      <div class="row"><label>x₁ =</label><input id="px1" type="range" min="0" max="10" step="0.1" value="5"><span class="val" id="px1v"></span></div>
+      <div class="row"><label>x₂ =</label><input id="px2" type="range" min="0" max="10" step="0.1" value="5"><span class="val" id="px2v"></span></div>
+      <div class="math" id="pOut2" style="font-size:14px"></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const X_MAX = 10, Y_MIN = -2, Y_MAX = 12;
+let pts = [], hist = [], running = false, dragging = -1, hover = -1, noiseLvl = 1;
+let seed = 7, grad = null, trail = [], acc = 0, lastT = 0;
+
+const cv = $('plot'), ctx = cv.getContext('2d');
+const lcv = $('loss'), lctx = lcv.getContext('2d');
+let W = 0, H = 0;
+const M = { l: 60, r: 30, t: 30, b: 50 };
+
+function fit() {
+  const dpr = window.devicePixelRatio || 1;
+  for (const [c, x] of [[cv, ctx], [lcv, lctx]]) {
+    const r = c.getBoundingClientRect();
+    c.width = r.width * dpr; c.height = r.height * dpr;
+    x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  W = cv.getBoundingClientRect().width; H = cv.getBoundingClientRect().height;
+  draw();
+}
+const view = { x0: 0, x1: X_MAX, y0: Y_MIN, y1: Y_MAX };
+const resetView = () => { view.x0 = 0; view.x1 = X_MAX; view.y0 = Y_MIN; view.y1 = Y_MAX; };
+const sx = x => M.l + (x - view.x0) / (view.x1 - view.x0) * (W - M.l - M.r);
+const sy = y => H - M.b - (y - view.y0) / (view.y1 - view.y0) * (H - M.t - M.b);
+const ix = px => view.x0 + (px - M.l) / (W - M.l - M.r) * (view.x1 - view.x0);
+const iy = py => view.y0 + (H - M.b - py) / (H - M.t - M.b) * (view.y1 - view.y0);
+function niceStep(range, target) {
+  const raw = range / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p;
+}
+const fmtTick = (v, st) => (Math.abs(v) < st * 1e-6 ? 0 : v).toFixed(st < 1 ? Math.min(4, Math.ceil(-Math.log10(st))) : 0);
+
+function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+function gauss() { return Math.sqrt(-2 * Math.log(rnd() + 1e-9)) * Math.cos(2 * Math.PI * rnd()); }
+
+const getW = () => +$('w').value, getB = () => +$('b').value;
+function setWB(w, b) {
+  w = Math.max(-3, Math.min(3, w)); b = Math.max(-5, Math.min(10, b));
+  $('w').value = w; $('b').value = b;
+}
+
+function stats() {
+  const n = pts.length, w = getW(), b = getB();
+  let sse = 0, my = 0;
+  pts.forEach(p => { sse += (p.y - (w * p.x + b)) ** 2; my += p.y; });
+  my = n ? my / n : 0;
+  let sst = 0; pts.forEach(p => sst += (p.y - my) ** 2);
+  let best = null;
+  if (n >= 2) {
+    let mx = 0; pts.forEach(p => mx += p.x); mx /= n;
+    let sxy = 0, sxx = 0;
+    pts.forEach(p => { sxy += (p.x - mx) * (p.y - my); sxx += (p.x - mx) ** 2; });
+    if (sxx > 1e-9) { const bw = sxy / sxx; best = { w: bw, b: my - bw * mx }; }
+  }
+  return { n, sse, mse: n ? sse / n : 0, r2: sst > 1e-9 ? 1 - sse / sst : NaN, best };
+}
+
+function gdStep() {
+  const n = pts.length; if (!n) return;
+  const lr = +$('lr').value; let w = getW(), b = getB(), dw = 0, db = 0;
+  pts.forEach(p => { const e = p.y - (w * p.x + b); dw += -2 * p.x * e; db += -2 * e; });
+  dw /= n; db /= n; grad = { dw, db, lr, w0: w, b0: b };
+  trail.push({ w, b }); if (trail.length > 25) trail.shift();
+  w -= lr * dw; b -= lr * db;
+  if (!isFinite(w) || !isFinite(b) || Math.abs(w) > 1e3 || Math.abs(b) > 1e3) {
+    running = false; $('bGD').textContent = '▶ شروع';
+    $('warn').textContent = 'واگرایی! نرخ یادگیری η بیش از حد بزرگ است.';
+    setWB(w > 0 ? 3 : -3, b > 0 ? 10 : -5); return;
+  }
+  $('warn').textContent = '';
+  setWB(w, b); // clamps to slider range
+  hist.push(stats().mse);
+  if (hist.length > 400) hist.shift();
+}
+
+function loop(t) {
+  if (!running) return;
+  acc += Math.min(t - lastT, 100) / 1000 * (+$('spd').value) * 4; lastT = t;
+  while (acc >= 1) { gdStep(); acc--; }
+  draw();
+  const s = stats();
+  if (hist.length > 5 && Math.abs(hist[hist.length - 1] - hist[hist.length - 2]) < 1e-7) {
+    running = false; $('bGD').textContent = '▶ شروع';
+  }
+  requestAnimationFrame(loop);
+}
+
+function draw() {
+  if (!W) return;
+  const w = getW(), b = getB(), s = stats();
+  ctx.clearRect(0, 0, W, H);
+  // grid
+  ctx.font = '12px "DejaVu Sans",sans-serif'; ctx.textAlign = 'center';
+  ctx.strokeStyle = '#232d45'; ctx.fillStyle = '#8d99b8'; ctx.lineWidth = 1;
+  const PL = M.l, PR = W - M.r, PT = M.t, PB = H - M.b;
+  const stx = niceStep(view.x1 - view.x0, 10), sty = niceStep(view.y1 - view.y0, 7);
+  for (let x = Math.ceil(view.x0 / stx) * stx; x <= view.x1 + 1e-9; x += stx) {
+    ctx.beginPath(); ctx.moveTo(sx(x), PB); ctx.lineTo(sx(x), PT); ctx.stroke();
+    ctx.fillText(fmtTick(x, stx), sx(x), PB + 18);
+  }
+  ctx.textAlign = 'right';
+  for (let y = Math.ceil(view.y0 / sty) * sty; y <= view.y1 + 1e-9; y += sty) {
+    ctx.beginPath(); ctx.moveTo(PL, sy(y)); ctx.lineTo(PR, sy(y)); ctx.stroke();
+    ctx.fillText(fmtTick(y, sty), PL - 8, sy(y) + 4);
+  }
+  // x=0 / y=0 reference lines
+  ctx.strokeStyle = '#3b4a70'; ctx.lineWidth = 1.5;
+  if (view.x0 < 0 && view.x1 > 0) { ctx.beginPath(); ctx.moveTo(sx(0), PB); ctx.lineTo(sx(0), PT); ctx.stroke(); }
+  if (view.y0 < 0 && view.y1 > 0) { ctx.beginPath(); ctx.moveTo(PL, sy(0)); ctx.lineTo(PR, sy(0)); ctx.stroke(); }
+  // axes
+  ctx.strokeStyle = '#8d99b8'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(PL, PT); ctx.lineTo(PL, PB); ctx.lineTo(PR, PB); ctx.stroke();
+  ctx.fillStyle = '#e6eaf5'; ctx.font = 'italic 15px "DejaVu Sans",sans-serif';
+  ctx.textAlign = 'center'; ctx.fillText('x (feature)', (PL + PR) / 2, H - 10);
+  ctx.save(); ctx.translate(16, (PT + PB) / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('y (target)', 0, 0); ctx.restore();
+
+  ctx.save(); ctx.beginPath(); ctx.rect(PL, PT, PR - PL, PB - PT); ctx.clip();
+
+  // squared errors
+  if ($('tSq').checked) pts.forEach(p => {
+    const e = p.y - (w * p.x + b), ph = Math.abs(sy(0) - sy(e)) ; // side length in px (y-scale)
+    const side = Math.abs(sy(p.y) - sy(w * p.x + b));
+    const x0 = sx(p.x), y0 = sy(p.y), y1 = sy(w * p.x + b);
+    ctx.fillStyle = 'rgba(255,92,108,0.18)'; ctx.strokeStyle = 'rgba(255,92,108,0.7)'; ctx.lineWidth = 1;
+    ctx.fillRect(x0, Math.min(y0, y1), side, side); ctx.strokeRect(x0, Math.min(y0, y1), side, side);
+  });
+
+  // best-fit line
+  if ($('tBest').checked && s.best) {
+    ctx.strokeStyle = '#3ddc97'; ctx.setLineDash([8, 6]); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx(view.x0), sy(s.best.w * view.x0 + s.best.b)); ctx.lineTo(sx(view.x1), sy(s.best.w * view.x1 + s.best.b)); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // trail of previous lines (animation)
+  trail.forEach((t, i) => {
+    ctx.strokeStyle = 'rgba(77,141,255,' + (0.05 + 0.25 * i / trail.length) + ')'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx(view.x0), sy(t.w * view.x0 + t.b)); ctx.lineTo(sx(view.x1), sy(t.w * view.x1 + t.b)); ctx.stroke();
+  });
+  // model line
+  ctx.strokeStyle = '#4d8dff'; ctx.lineWidth = 3.5;
+  ctx.shadowColor = 'rgba(77,141,255,.6)'; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.moveTo(sx(view.x0), sy(w * view.x0 + b)); ctx.lineTo(sx(view.x1), sy(w * view.x1 + b)); ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // prediction marker
+  { const px = +$('px').value, py = w * px + b;
+    $('pxv').textContent = px.toFixed(1);
+    ctx.strokeStyle = 'rgba(255,209,102,.7)'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(sx(px), sy(0)); ctx.lineTo(sx(px), sy(py)); ctx.lineTo(sx(0), sy(py)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd166'; ctx.beginPath(); ctx.arc(sx(px), sy(py), 7, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#06101f'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.font = 'bold 14px "DejaVu Sans",sans-serif'; ctx.textAlign = 'left'; ctx.fillStyle = '#ffd166';
+    ctx.fillText('ŷ(' + px.toFixed(1) + ') = ' + py.toFixed(2), sx(px) + 10, sy(py) - 10);
+    $('pOut').innerHTML = 'ŷ = w·x + b = <span class="w">' + w.toFixed(2) + '</span>·' + px.toFixed(1) + ' + <span class="b">' + b.toFixed(2) + '</span> = <b>' + py.toFixed(2) + '</b>'; }
+
+  // slope triangle
+  if ($('tTri').checked) {
+    const x0 = 1.5, x1 = 4.5, y0 = w * x0 + b, y1 = w * x1 + b;
+    ctx.strokeStyle = '#ffd166'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(sx(x0), sy(y0)); ctx.lineTo(sx(x1), sy(y0)); ctx.lineTo(sx(x1), sy(y1)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffd166'; ctx.font = '13px "DejaVu Sans",sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('Δx = 3', sx((x0 + x1) / 2), sy(y0) + (w >= 0 ? 18 : -8));
+    ctx.textAlign = 'left';
+    ctx.fillText('Δy = ' + (w * 3).toFixed(2) + '  →  w = Δy/Δx = ' + w.toFixed(2), sx(x1) + 8, sy((y0 + y1) / 2) + 4);
+  }
+
+  // residuals
+  if ($('tRes').checked) pts.forEach(p => {
+    const yh = w * p.x + b;
+    ctx.strokeStyle = '#ff5c6c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(sx(p.x), sy(p.y)); ctx.lineTo(sx(p.x), sy(yh)); ctx.stroke();
+  });
+  ctx.restore();
+
+  // intercept marker
+  if (view.x0 <= 0 && view.x1 >= 0 && b >= view.y0 && b <= view.y1) {
+    ctx.fillStyle = '#3ddc97'; ctx.beginPath(); ctx.arc(sx(0), sy(b), 6, 0, 7); ctx.fill();
+    ctx.font = '13px "DejaVu Sans",sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('b = ' + b.toFixed(2), sx(0) + 10, sy(b) - 8);
+  }
+
+  // points
+  ctx.save(); ctx.beginPath(); ctx.rect(PL - 8, PT - 8, PR - PL + 16, PB - PT + 16); ctx.clip();
+  pts.forEach((p, i) => {
+    if ($('tPred').checked) {
+      ctx.fillStyle = '#e6eaf5'; ctx.beginPath(); ctx.arc(sx(p.x), sy(w * p.x + b), 3.5, 0, 7); ctx.fill();
+    }
+    ctx.fillStyle = '#ff5c6c'; ctx.strokeStyle = i === hover ? '#fff' : '#0f1420'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), i === hover ? 8 : 6.5, 0, 7); ctx.fill(); ctx.stroke();
+  });
+  ctx.restore();
+
+  // hovered point info
+  if (hover >= 0 && pts[hover]) {
+    const p = pts[hover], yh = w * p.x + b, e = p.y - yh;
+    const lines = ['x = ' + p.x.toFixed(2), 'y = ' + p.y.toFixed(2), 'ŷ = ' + yh.toFixed(2), 'ε = y − ŷ = ' + e.toFixed(2), 'ε² = ' + (e * e).toFixed(2)];
+    const bx = Math.min(sx(p.x) + 14, W - 150), by = Math.max(sy(p.y) - 90, 10);
+    ctx.fillStyle = 'rgba(30,39,64,.95)'; ctx.strokeStyle = '#2b3652'; ctx.lineWidth = 1;
+    ctx.fillRect(bx, by, 140, 86); ctx.strokeRect(bx, by, 140, 86);
+    ctx.fillStyle = '#e6eaf5'; ctx.font = '12px "DejaVu Sans",sans-serif'; ctx.textAlign = 'left';
+    lines.forEach((t, k) => ctx.fillText(t, bx + 8, by + 17 + k * 16));
+  }
+
+  // live equation
+  const f = (v, d = 3) => (v < 0 ? '−' : '') + Math.abs(v).toFixed(d);
+  $('eqMain').innerHTML = 'ŷ = <span class="w">' + f(w) + '</span>·x ' + (b < 0 ? '−' : '+') + ' <span class="b">' + Math.abs(b).toFixed(3) + '</span>';
+  if (grad && (running || trail.length)) {
+    $('eqSub').innerHTML = '∂L/∂w = <span class="w">' + f(grad.dw) + '</span> &nbsp; ∂L/∂b = <span class="b">' + f(grad.db) + '</span> &nbsp; | &nbsp; ' +
+      'w: ' + f(grad.w0) + ' − ' + grad.lr.toFixed(3) + '×' + f(grad.dw) + ' → <span class="w">' + f(w) + '</span> &nbsp; ' +
+      'b: ' + f(grad.b0) + ' − ' + grad.lr.toFixed(3) + '×' + f(grad.db) + ' → <span class="b">' + f(b) + '</span>';
+  } else $('eqSub').textContent = 'MSE = ' + (s.n ? s.mse.toFixed(3) : '—');
+  // panel
+  $('wv').textContent = w.toFixed(2); $('bv').textContent = b.toFixed(2);
+  $('lrv').textContent = (+$('lr').value).toFixed(3); $('spdv').textContent = $('spd').value;
+  $('sN').textContent = s.n;
+  $('sMse').textContent = s.n ? s.mse.toFixed(3) : '—';
+  $('sSse').textContent = s.n ? s.sse.toFixed(2) : '—';
+  $('sR2').textContent = isFinite(s.r2) ? s.r2.toFixed(3) : '—';
+  $('sWb').textContent = s.best ? s.best.w.toFixed(3) : '—';
+  $('sBb').textContent = s.best ? s.best.b.toFixed(3) : '—';
+  drawLoss();
+}
+
+function drawLoss() {
+  const r = lcv.getBoundingClientRect(), lw = r.width, lh = r.height;
+  lctx.clearRect(0, 0, lw, lh);
+  lctx.strokeStyle = '#2b3652'; lctx.strokeRect(30.5, 8.5, lw - 40, lh - 24);
+  lctx.fillStyle = '#8d99b8'; lctx.font = '10px "DejaVu Sans",sans-serif'; lctx.textAlign = 'center';
+  lctx.fillText('iteration', lw / 2 + 10, lh - 3);
+  if (hist.length < 2) return;
+  const mx = Math.max(...hist), mn = 0;
+  lctx.textAlign = 'right'; lctx.fillText(mx.toFixed(1), 27, 18); lctx.fillText('0', 27, lh - 18);
+  lctx.strokeStyle = '#ffd166'; lctx.lineWidth = 2; lctx.beginPath();
+  hist.forEach((v, i) => {
+    const x = 30 + i / (hist.length - 1) * (lw - 40), y = (lh - 16) - (v - mn) / (mx - mn || 1) * (lh - 24);
+    i ? lctx.lineTo(x, y) : lctx.moveTo(x, y);
+  });
+  lctx.stroke();
+}
+
+function genData(noise) {
+  const tw = 0.6 + rnd() * 0.8, tb = 1 + rnd() * 2; pts = [];
+  for (let i = 0; i < 25; i++) {
+    const x = 0.3 + rnd() * 9.4;
+    pts.push({ x, y: Math.max(Y_MIN + .2, Math.min(Y_MAX - .2, tw * x + tb + gauss() * noise)) });
+  }
+  hist = [];
+}
+
+// interaction
+function pos(e) { const r = cv.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
+function hit(m) {
+  for (let i = pts.length - 1; i >= 0; i--) if (Math.hypot(sx(pts[i].x) - m.x, sy(pts[i].y) - m.y) < 11) return i;
+  return -1;
+}
+function inPlot(m) { return m.x >= M.l && m.x <= W - M.r && m.y >= M.t && m.y <= H - M.b; }
+let pan = null;
+cv.style.cursor = 'crosshair';
+cv.addEventListener('pointerdown', e => {
+  const m = pos(e), i = hit(m);
+  cv.setPointerCapture(e.pointerId);
+  if (i >= 0) dragging = i;
+  else pan = { mx: m.x, my: m.y, v: { ...view }, moved: false };
+  draw();
+});
+cv.addEventListener('pointermove', e => {
+  const m = pos(e);
+  if (dragging >= 0) {
+    pts[dragging].x = ix(m.x); pts[dragging].y = iy(m.y);
+    hist = []; hover = dragging;
+  } else if (pan) {
+    const dx = m.x - pan.mx, dy = m.y - pan.my;
+    if (!pan.moved && Math.hypot(dx, dy) > 4) { pan.moved = true; cv.style.cursor = 'grabbing'; }
+    if (pan.moved) {
+      const kx = (pan.v.x1 - pan.v.x0) / (W - M.l - M.r), ky = (pan.v.y1 - pan.v.y0) / (H - M.t - M.b);
+      view.x0 = pan.v.x0 - dx * kx; view.x1 = pan.v.x1 - dx * kx;
+      view.y0 = pan.v.y0 + dy * ky; view.y1 = pan.v.y1 + dy * ky;
+    }
+  } else hover = hit(m);
+  draw();
+});
+cv.addEventListener('pointerup', e => {
+  const m = pos(e);
+  if (pan && !pan.moved && inPlot(m)) { pts.push({ x: ix(m.x), y: iy(m.y) }); hist = []; }
+  pan = null; dragging = -1; cv.style.cursor = 'crosshair'; draw();
+});
+cv.addEventListener('pointerleave', () => { if (dragging < 0 && !pan) { hover = -1; draw(); } });
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const m = pos(e), k = Math.exp(e.deltaY * 0.0015);
+  const cx = ix(m.x), cy = iy(m.y);
+  view.x0 = cx + (view.x0 - cx) * k; view.x1 = cx + (view.x1 - cx) * k;
+  view.y0 = cy + (view.y0 - cy) * k; view.y1 = cy + (view.y1 - cy) * k;
+  draw();
+}, { passive: false });
+cv.addEventListener('dblclick', e => { const i = hit(pos(e)); if (i >= 0) { pts.splice(i, 1); hover = -1; hist = []; draw(); } });
+
+['w', 'b'].forEach(id => $(id).addEventListener('input', () => { hist = []; trail = []; grad = null; draw(); }));
+['tRes', 'tSq', 'tTri', 'tPred', 'tBest', 'lr', 'spd'].forEach(id => $(id).addEventListener('input', draw));
+$('px').addEventListener('input', draw);
+
+$('bGD').onclick = () => {
+  running = !running;
+  $('bGD').textContent = running ? '⏸ توقف' : '▶ شروع';
+  if (running) { $('warn').textContent = ''; if (!hist.length) hist.push(stats().mse); trail = []; acc = 0; lastT = performance.now(); requestAnimationFrame(loop); }
+};
+$('bStep').onclick = () => { if (!hist.length) hist.push(stats().mse); gdStep(); draw(); };
+$('bSolve').onclick = () => { const s = stats(); if (s.best) { setWB(s.best.w, s.best.b); hist = []; draw(); } };
+$('bRand').onclick = () => { genData(noiseLvl); draw(); };
+$('bNoise').onclick = () => { noiseLvl = noiseLvl >= 2.5 ? 0.3 : noiseLvl + 0.6; genData(noiseLvl); draw(); };
+$('bOut').onclick = () => { pts.push({ x: 8.5 + rnd(), y: 0 + rnd() }); hist = []; draw(); };
+$('bView').onclick = () => { resetView(); draw(); };
+$('bClear').onclick = () => { pts = []; hist = []; hover = -1; draw(); };
+
+window.addEventListener('resize', fit);
+genData(noiseLvl);
+fit();
+/* ===== Two-variable mode: ŷ = w1·x1 + w2·x2 + b ===== */
+const cv3 = $('plot3'), c3 = cv3.getContext('2d');
+const lcv2 = $('loss2'), lc2 = lcv2.getContext('2d');
+let W3 = 0, H3 = 0, mode = 1;
+let P = [], hist2 = [], run2 = false, acc2 = 0, last2 = 0, seed2 = 11, hov2 = -1;
+const cam = { yaw: -0.7, pitch: 0.45, zoom: 1 };
+const g = id => +$(id).value;
+const par = () => ({ w1: g('w1'), w2: g('w2'), b: g('b2') });
+const pred2 = (p, q) => q.w1 * p.x1 + q.w2 * p.x2 + q.b;
+const r2n = () => { seed2 = (seed2 * 16807) % 2147483647; return seed2 / 2147483647; };
+const gs2 = () => Math.sqrt(-2 * Math.log(r2n() + 1e-9)) * Math.cos(2 * Math.PI * r2n());
+
+// data -> normalized cube [-1,1]^3 ; x1 -> X, x2 -> Z, y -> Y (up)
+const nrm = (x1, x2, y) => [(x1 - 5) / 5, (y - 5) / 7, (x2 - 5) / 5];
+function proj(v) {
+  const [x, y, z] = v, cy = Math.cos(cam.yaw), sy_ = Math.sin(cam.yaw), cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+  const x1 = x * cy - z * sy_, z1 = x * sy_ + z * cy;
+  const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+  const s = Math.min(W3, H3) * 0.3 * cam.zoom, f = 1 / (1 - z2 * 0.12);
+  return [W3 / 2 + x1 * s * f, H3 / 2 + 20 - y2 * s * f, z2];
+}
+const P3 = (x1, x2, y) => proj(nrm(x1, x2, Math.max(-2, Math.min(12, y))));
+
+function fit2() {
+  const dpr = window.devicePixelRatio || 1;
+  for (const [c, x] of [[cv3, c3], [lcv2, lc2]]) {
+    const r = c.getBoundingClientRect(); if (!r.width) return;
+    c.width = r.width * dpr; c.height = r.height * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  const r = cv3.getBoundingClientRect(); W3 = r.width; H3 = r.height; draw2();
+}
+
+function solve3(A, v) { // Gaussian elimination, 3x3
+  const m = A.map((r, i) => [...r, v[i]]);
+  for (let i = 0; i < 3; i++) {
+    let k = i; for (let j = i + 1; j < 3; j++) if (Math.abs(m[j][i]) > Math.abs(m[k][i])) k = j;
+    if (Math.abs(m[k][i]) < 1e-9) return null;
+    [m[i], m[k]] = [m[k], m[i]];
+    for (let j = 0; j < 3; j++) if (j !== i) { const f = m[j][i] / m[i][i]; for (let c = i; c < 4; c++) m[j][c] -= f * m[i][c]; }
+  }
+  return { w1: m[0][3] / m[0][0], w2: m[1][3] / m[1][1], b: m[2][3] / m[2][2] };
+}
+function stats2(q = par()) {
+  const n = P.length; let sse = 0, my = 0;
+  P.forEach(p => { sse += (p.y - pred2(p, q)) ** 2; my += p.y; });
+  my = n ? my / n : 0;
+  let sst = 0; P.forEach(p => sst += (p.y - my) ** 2);
+  let best = null;
+  if (n >= 3) {
+    const A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], v = [0, 0, 0];
+    P.forEach(p => { const f = [p.x1, p.x2, 1]; for (let i = 0; i < 3; i++) { v[i] += f[i] * p.y; for (let j = 0; j < 3; j++) A[i][j] += f[i] * f[j]; } });
+    best = solve3(A, v);
+  }
+  return { n, sse, mse: n ? sse / n : 0, r2: sst > 1e-9 ? 1 - sse / sst : NaN, best };
+}
+function setP(q) {
+  const c = (v, a, b) => Math.max(a, Math.min(b, v));
+  $('w1').value = c(q.w1, -3, 3); $('w2').value = c(q.w2, -3, 3); $('b2').value = c(q.b, -8, 10);
+}
+function gd2() {
+  const n = P.length; if (!n) return;
+  const lr = g('lr2'), q = par(); let d1 = 0, d2 = 0, db = 0;
+  P.forEach(p => { const e = p.y - pred2(p, q); d1 += -2 * p.x1 * e; d2 += -2 * p.x2 * e; db += -2 * e; });
+  d1 /= n; d2 /= n; db /= n;
+  const nq = { w1: q.w1 - lr * d1, w2: q.w2 - lr * d2, b: q.b - lr * db };
+  if (![nq.w1, nq.w2, nq.b].every(isFinite) || Math.abs(nq.w1) > 1e3 || Math.abs(nq.w2) > 1e3 || Math.abs(nq.b) > 1e3) {
+    run2 = false; $('bGD2').textContent = '▶ شروع';
+    $('warn2').textContent = 'واگرایی! نرخ یادگیری η بیش از حد بزرگ است.';
+    setP({ w1: nq.w1 > 0 ? 3 : -3, w2: nq.w2 > 0 ? 3 : -3, b: nq.b > 0 ? 10 : -8 }); return;
+  }
+  $('warn2').textContent = '';
+  setP(nq); $('g2').textContent = `∂L/∂w₁ = ${d1.toFixed(2)}   ∂L/∂w₂ = ${d2.toFixed(2)}   ∂L/∂b = ${db.toFixed(2)}`;
+  hist2.push(stats2().mse); if (hist2.length > 400) hist2.shift();
+}
+function loop2(t) {
+  if (!run2) return;
+  acc2 += Math.min(t - last2, 100) / 1000 * g('spd2') * 10; last2 = t;
+  while (acc2 >= 1) { gd2(); acc2--; }
+  draw2();
+  if (hist2.length > 5 && Math.abs(hist2.at(-1) - hist2.at(-2)) < 1e-9) { run2 = false; $('bGD2').textContent = '▶ شروع'; }
+  requestAnimationFrame(loop2);
+}
+
+function line3(a, b, col, lw = 1, dash) {
+  c3.beginPath(); c3.moveTo(a[0], a[1]); c3.lineTo(b[0], b[1]);
+  c3.strokeStyle = col; c3.lineWidth = lw; c3.setLineDash(dash || []); c3.stroke(); c3.setLineDash([]);
+}
+function plane(q, fill, stroke, spectral) {
+  const N = 10, S = 10 / N, pt = (i, j) => P3(i * S, j * S, q.w1 * i * S + q.w2 * j * S + q.b);
+  const quads = [];
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const a = pt(i, j), b = pt(i + 1, j), c = pt(i + 1, j + 1), d = pt(i, j + 1);
+    quads.push([a, b, c, d, (a[2] + b[2] + c[2] + d[2]) / 4]);
+  }
+  quads.sort((u, v) => u[4] - v[4]);
+  const zs = quads.map(qd => qd[4]), zmin = Math.min(...zs), zmax = Math.max(...zs), span = zmax - zmin || 1;
+  c3.strokeStyle = stroke; c3.lineWidth = 0.7;
+  quads.forEach(([a, b, c, d, z], k) => {
+    // spectral: far = violet/blue, near = orange/red (hue 265 -> 15)
+    c3.fillStyle = spectral ? `hsla(${265 - 250 * ((z - zmin) / span)}, 85%, 58%, 0.5)` : fill;
+    c3.beginPath(); c3.moveTo(a[0], a[1]); [b, c, d].forEach(p => c3.lineTo(p[0], p[1])); c3.closePath(); c3.fill(); c3.stroke();
+  });
+}
+function draw2() {
+  if (!W3) return;
+  const q = par(), s = stats2();
+  c3.clearRect(0, 0, W3, H3);
+  // floor grid (y = -2) and axes
+  for (let v = 0; v <= 10; v += 2) {
+    line3(P3(v, 0, -2), P3(v, 10, -2), 'rgba(77,141,255,.28)'); line3(P3(0, v, -2), P3(10, v, -2), 'rgba(180,140,255,.28)');
+  }
+  const o = P3(0, 0, -2);
+  [[P3(10, 0, -2), 'x₁', '#4d8dff'], [P3(0, 10, -2), 'x₂', '#b48cff'], [P3(0, 0, 12), 'y', '#e6eaf5']].forEach(([e, t, col]) => {
+    line3(o, e, col, 2); c3.fillStyle = col; c3.font = 'bold 22px sans-serif'; c3.fillText(t, e[0] + 8, e[1] - 6);
+  });
+  c3.font = 'bold 14px sans-serif';
+  c3.fillStyle = '#4d8dff';
+  for (let v = 0; v <= 10; v += 5) { const a = P3(v, 0, -2); c3.fillText(v, a[0] - 6, a[1] + 18); }
+  c3.fillStyle = '#b48cff';
+  for (let v = 0; v <= 10; v += 5) { const b = P3(0, v, -2); c3.fillText(v, b[0] - 22, b[1] + 5); }
+  c3.fillStyle = '#e6eaf5';
+  for (const v of [0, 5, 10]) { const a = P3(0, 0, v); c3.fillText(v, a[0] - 22, a[1] + 5); }
+
+  if ($('tBest2').checked && s.best) plane(s.best, 'rgba(61,220,151,.13)', 'rgba(61,220,151,.35)');
+  plane(q, '', 'rgba(230,234,245,.25)', true);
+
+  const order = P.map((p, i) => [i, proj(nrm(p.x1, p.x2, p.y))[2]]).sort((a, b) => a[1] - b[1]);
+  order.forEach(([i]) => {
+    const p = P[i], a = P3(p.x1, p.x2, p.y), yh = pred2(p, q), f = P3(p.x1, p.x2, yh);
+    if ($('tRes2').checked) line3(a, f, '#ff5c6c', 1.8);
+    if ($('tDrop2').checked) line3(a, P3(p.x1, p.x2, -2), 'rgba(141,153,184,.35)', 1, [3, 3]);
+    c3.beginPath(); c3.arc(a[0], a[1], i === hov2 ? 7 : 5, 0, 7);
+    c3.fillStyle = '#ffd166'; c3.fill(); c3.strokeStyle = '#0f1420'; c3.lineWidth = 1.5; c3.stroke();
+  });
+  // prediction marker
+  { const x1 = +$('px1').value, x2 = +$('px2').value, yh = q.w1 * x1 + q.w2 * x2 + q.b;
+    $('px1v').textContent = x1.toFixed(1); $('px2v').textContent = x2.toFixed(1);
+    const top = P3(x1, x2, yh), floor = P3(x1, x2, -2);
+    c3.strokeStyle = 'rgba(255,209,102,.8)'; c3.lineWidth = 1.5; c3.setLineDash([4, 4]);
+    c3.beginPath(); c3.moveTo(floor[0], floor[1]); c3.lineTo(top[0], top[1]); c3.stroke(); c3.setLineDash([]);
+    c3.fillStyle = '#ffd166'; c3.beginPath(); c3.arc(top[0], top[1], 8, 0, Math.PI * 2); c3.fill();
+    c3.strokeStyle = '#06101f'; c3.lineWidth = 2; c3.stroke();
+    c3.font = 'bold 14px sans-serif'; c3.textAlign = 'left'; c3.fillStyle = '#ffd166';
+    c3.fillText('ŷ = ' + yh.toFixed(2), top[0] + 12, top[1] - 10);
+    $('pOut2').innerHTML = 'ŷ = <span class="w">' + q.w1.toFixed(2) + '</span>·' + x1.toFixed(1) + ' + <span class="p">' + q.w2.toFixed(2) + '</span>·' + x2.toFixed(1) + ' + <span class="b">' + q.b.toFixed(2) + '</span> = <b>' + yh.toFixed(2) + '</b>'; }
+
+  // equation
+  const sg = v => (v < 0 ? '− ' : '+ ') + Math.abs(v).toFixed(2);
+  $('eq2Main').innerHTML = `ŷ = <span class="w">${q.w1.toFixed(2)}</span>·x₁ <span class="p">${sg(q.w2)}</span>·x₂ <span class="b">${sg(q.b)}</span>`;
+  $('eq2Sub').textContent = `MSE = ${s.mse.toFixed(3)}   R² = ${isNaN(s.r2) ? '–' : s.r2.toFixed(3)}`;
+  if (hov2 >= 0) {
+    const p = P[hov2], yh = pred2(p, q);
+    $('eq2Sub').textContent += `   |  (${p.x1.toFixed(1)}, ${p.x2.toFixed(1)}) y=${p.y.toFixed(2)}  ŷ=${yh.toFixed(2)}  ε=${(p.y - yh).toFixed(2)}`;
+  }
+  $('w1v').textContent = q.w1.toFixed(2); $('w2v').textContent = q.w2.toFixed(2); $('b2v').textContent = q.b.toFixed(2); $('lr2v').textContent = g('lr2').toFixed(4); $('spd2v').textContent = g('spd2');
+  $('s2N').textContent = s.n; $('s2Mse').textContent = s.mse.toFixed(3); $('s2Sse').textContent = s.sse.toFixed(2);
+  $('s2R2').textContent = isNaN(s.r2) ? '–' : s.r2.toFixed(3);
+  $('s2W1').textContent = s.best ? s.best.w1.toFixed(3) : '–'; $('s2W2').textContent = s.best ? s.best.w2.toFixed(3) : '–'; $('s2B').textContent = s.best ? s.best.b.toFixed(3) : '–';
+  // loss chart
+  const w = lcv2.getBoundingClientRect().width, h = lcv2.getBoundingClientRect().height;
+  lc2.clearRect(0, 0, w, h);
+  if (hist2.length > 1) {
+    const mx = Math.max(...hist2), mn = Math.min(...hist2); lc2.beginPath();
+    hist2.forEach((v, i) => { const x = 6 + i / (hist2.length - 1) * (w - 12), y = h - 8 - (v - mn) / (mx - mn + 1e-9) * (h - 16); i ? lc2.lineTo(x, y) : lc2.moveTo(x, y); });
+    lc2.strokeStyle = '#ffd166'; lc2.lineWidth = 2; lc2.stroke();
+  }
+}
+function gen2(noise) {
+  const a = 0.5 + r2n() * 0.5, c = 0.2 + r2n() * 0.5, d = r2n() * 2; P = [];
+  for (let i = 0; i < 30; i++) {
+    const x1 = r2n() * 10, x2 = r2n() * 10;
+    P.push({ x1, x2, y: Math.max(-1.8, Math.min(11.8, a * x1 + c * x2 + d + gs2() * noise)) });
+  }
+  hist2 = [];
+}
+
+// interaction: drag = rotate, wheel = zoom, hover = point info
+let rot = null, noise2 = 1;
+cv3.addEventListener('pointerdown', e => { rot = { x: e.clientX, y: e.clientY }; cv3.setPointerCapture(e.pointerId); });
+cv3.addEventListener('pointerup', () => rot = null);
+cv3.addEventListener('pointermove', e => {
+  if (rot) {
+    cam.yaw += (e.clientX - rot.x) * 0.01; cam.pitch = Math.max(-1.4, Math.min(1.4, cam.pitch + (e.clientY - rot.y) * 0.01));
+    rot = { x: e.clientX, y: e.clientY }; draw2(); return;
+  }
+  const r = cv3.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top; let best = -1, bd = 100;
+  P.forEach((p, i) => { const a = P3(p.x1, p.x2, p.y), d = (a[0] - mx) ** 2 + (a[1] - my) ** 2; if (d < bd) { bd = d; best = i; } });
+  if (best !== hov2) { hov2 = best; draw2(); }
+});
+cv3.addEventListener('wheel', e => { e.preventDefault(); cam.zoom = Math.max(0.4, Math.min(3, cam.zoom * Math.exp(-e.deltaY * 0.0012))); draw2(); }, { passive: false });
+
+['w1', 'w2', 'b2'].forEach(id => $(id).addEventListener('input', () => { hist2 = []; draw2(); }));
+['px1', 'px2'].forEach(id => $(id).addEventListener('input', draw2));
+['tRes2', 'tDrop2', 'tBest2', 'lr2', 'spd2'].forEach(id => $(id).addEventListener('input', draw2));
+$('bGD2').onclick = () => {
+  run2 = !run2; $('bGD2').textContent = run2 ? '⏸ توقف' : '▶ شروع';
+  if (run2) { $('warn2').textContent = ''; if (!hist2.length) hist2.push(stats2().mse); acc2 = 0; last2 = performance.now(); requestAnimationFrame(loop2); }
+};
+$('bStep2').onclick = () => { if (!hist2.length) hist2.push(stats2().mse); gd2(); draw2(); };
+$('bSolve2').onclick = () => { const s = stats2(); if (s.best) { setP(s.best); hist2 = []; draw2(); } };
+$('bRand2').onclick = () => { gen2(noise2); draw2(); };
+$('bNoise2').onclick = () => { noise2 = noise2 >= 2.5 ? 0.3 : noise2 + 0.6; gen2(noise2); draw2(); };
+$('bAdd2').onclick = () => { P.push({ x1: r2n() * 10, x2: r2n() * 10, y: 1 + r2n() * 9 }); hist2 = []; draw2(); };
+$('bOut2').onclick = () => { P.push({ x1: 9 + r2n(), x2: 9 + r2n(), y: 0 + r2n() }); hist2 = []; draw2(); };
+$('bView2').onclick = () => { cam.yaw = -0.7; cam.pitch = 0.45; cam.zoom = 1; draw2(); };
+$('bClear2').onclick = () => { P = []; hist2 = []; hov2 = -1; draw2(); };
+
+function setMode(m) {
+  mode = m; if (m === 2) running = false; else run2 = false;
+  $('bGD').textContent = '▶ شروع'; $('bGD2').textContent = '▶ شروع';
+  $('m1').classList.toggle('on', m === 1); $('m2').classList.toggle('on', m === 2);
+  $('stage').style.display = $('side1').style.display = m === 1 ? '' : 'none';
+  $('stage2').style.display = $('side2').style.display = m === 2 ? '' : 'none';
+  $('hf').textContent = m === 1 ? 'ŷ = w·x + b' : 'ŷ = w₁·x₁ + w₂·x₂ + b';
+  $('hh1').style.display = m === 1 ? '' : 'none'; $('hh2').style.display = m === 2 ? '' : 'none';
+  m === 1 ? fit() : fit2();
+}
+$('m1').onclick = () => setMode(1); $('m2').onclick = () => setMode(2);
+window.addEventListener('resize', () => mode === 2 && fit2());
+gen2(noise2);
+
+</script>
+</body>
+</html>
